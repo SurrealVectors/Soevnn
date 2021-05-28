@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Queue.fs" />
+    <Compile Include="PathwayMap.fs" />
+    <Compile Include="Partitions.fs" />
+    <None Include="ProbabilityMap.fs" />
+    <Compile Include="Core.fs" />
+    <Compile Include="Glia.fs" />
+    <Compile Include="ParallelPathwayMap.fs" />
+    <Compile Include="Parallel.fs" />
+    <Compile Include="Serialization.fs" />
+  </ItemGroup>
+
+  <ItemGroup />
+
+  <ItemGroup>
+    <PackageReference Include="MessagePack.FSharpExtensions" Version="2.1.0" />
+  </ItemGroup>
+
+</Project>
