@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SoevnnConsoleTests": {
+      "commandName": "Project",
+      "commandLineArgs": "--interactive"
+    }
+  }
+}
