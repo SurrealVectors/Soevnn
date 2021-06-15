@@ -1,10 +1,14 @@
 # Soevnn
-Soevnn is an acronym for Self-Organising Estimated-Variance Neural Net. It is consists of neurons connected in a directed graph. The neurons are not pre-organized into layers. Each neuron learns an estimated expectation of it's combined inputs.
+Soevnn is an acronym for Self-Organising Estimated-Variance Neural Net. It is consists a heterogeneous population of neurons connected in a directed cyclic graph. Instead of being pre-organized into specific layers, the neurons are organized into structures, types, and clusters. Instead the neurons form connections probabilisticly based on a variety of factors. Neurons will also break less useful connections. Each neuron learns short-term and long-term estimated expectations of it's combined inputs. The output is the comparison of the short-term expectation relative to the long-term expectation.
 
-Also included is a console program to facilitate training, testing, and analysis of individual Soevnn's. 
+Also included is a console program to facilitate training, testing, and analysis of individual Soevnns. 
 
-Please note, this has been a solo project up to this point. As such my current priority is adding documentation, improving code readability, completing the help system for the console program, correcting any in-code misspellings that I might not have bothered to fix, etc. 
+ 
 
 
-This software uses NUnit. In that regard:
-Portions Copyright © 2002-2012 Charlie Poole or Copyright © 2002-2004 James W. Newkirk, Michael C. Two, Alexei A. Vorontsov or Copyright © 2000-2002 Philip A. Craig
+Credits:
+Soevnn - Copyright © 2021 Lilith Stanley
+MessagePack.FSharpExtensions - Copyright © 2017 pocketberserker
+MessagePack for C# - Copyright © 2017 Yoshifumi Kawai and contributors
+lz4net - Copyright © 2013-2017 Milosz Krajewski
+NUnit - Copyright © 2021 Charlie Poole, Rob Prouse
