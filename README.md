@@ -6,9 +6,9 @@ Also included is a console program to facilitate training, testing, and analysis
  
 
 
-Credits:
-Soevnn - Copyright © 2021 Lilith Stanley
-MessagePack.FSharpExtensions - Copyright © 2017 pocketberserker
-MessagePack for C# - Copyright © 2017 Yoshifumi Kawai and contributors
-lz4net - Copyright © 2013-2017 Milosz Krajewski
-NUnit - Copyright © 2021 Charlie Poole, Rob Prouse
+Credits:  
+Soevnn - Copyright © 2021 Lilith Stanley  
+MessagePack.FSharpExtensions - Copyright © 2017 pocketberserker  
+MessagePack for C# - Copyright © 2017 Yoshifumi Kawai and contributors  
+lz4net - Copyright © 2013-2017 Milosz Krajewski  
+NUnit - Copyright © 2021 Charlie Poole, Rob Prouse  
