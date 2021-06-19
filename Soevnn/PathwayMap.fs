@@ -1,5 +1,4 @@
 ﻿module Soevnn.Utilities.PathwayMap
-//open Soevnn.Utilities.Queue
 
 type PathNode<'l, 't when 'l : comparison> = { location : 'l; adjecent : 'l list; data : 't}
 

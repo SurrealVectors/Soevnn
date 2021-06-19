@@ -5,7 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Queue.fs" />
     <Compile Include="PathwayMap.fs" />
     <Compile Include="Partitions.fs" />
     <None Include="ProbabilityMap.fs" />
