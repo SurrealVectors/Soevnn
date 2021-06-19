@@ -648,22 +648,6 @@ let main argv =
             let iterations = extractarg ["-i";"--iterations"]  ExtractInt args
             posttestcommand (TestSetRemainingIterations(iterations)) (Printf.sprintf "Test %i successfully continued.") args
             loop pops structures (readline() |> getargs)
-        | Command ["testsavesoevnn"; "tsnn"] args -> 
-            let logfile = extractarg ["-f"; "--file"] (id >> Some) args // |> Option.map (fun (sw : StreamWriter) -> TextWriter(sw))
-            match logfile with | None -> printbn "Failed to save Soevnn. No File given. Use -f or --file to pass the filename as an argument."  | Some file -> posttestcommand (TestSaveSoevnn(file)) (Printf.sprintf "Test %i successfully saved Soevnn.") args
-            loop pops structures (readline() |> getargs)
-        | Command ["testsavetest"; "tst"] args -> 
-            let logfile = extractarg ["-f"; "--file"] (id >> Some) args // |> Option.map (fun (sw : StreamWriter) -> TextWriter(sw))
-            match logfile with | None -> printbn "Failed to save test. No File given. Use -f or --file to pass the filename as an argument."  | Some file -> posttestcommand (TestSaveTest(file)) (Printf.sprintf "Test %i successfully saved Soevnn.") args
-            loop pops structures (readline() |> getargs)
-        | Command ["testloadsoevnn"; "tlnn"] args -> 
-            let logfile = extractarg ["-f"; "--file"] (id >> Some) args // |> Option.map (fun (sw : StreamWriter) -> TextWriter(sw))
-            match logfile with | None -> printbn "Failed to load Soevnn. No File given. Use -f or --file to pass the filename as an argument."  | Some file -> posttestcommand (TestLoadSoevnn(LoadFromFileName file)) (Printf.sprintf "Test %i successfully saved Soevnn.") args
-            loop pops structures (readline() |> getargs)
-        | Command ["testloadtest"; "tlt"] args -> 
-            let logfile = extractarg ["-f"; "--file"] (id >> Some) args // |> Option.map (fun (sw : StreamWriter) -> TextWriter(sw))
-            match logfile with | None -> printbn "Failed to load test. No File given. Use -f or --file to pass the filename as an argument." | Some file -> posttestcommand (TestLoadTest(LoadFromFileName file)) (Printf.sprintf "Test %i successfully saved Soevnn.") args
-            loop pops structures (readline() |> getargs)
 
         | Command ["testgetprogress"; "tprog"] args -> 
             

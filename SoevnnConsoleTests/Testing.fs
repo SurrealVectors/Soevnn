@@ -30,54 +30,6 @@ let inputfunctions =
             ("mod", (fun i -> 100.0 * Math.IEEERemainder(0.1 * float i, 1.0)))
         ]
 
-
-
-
-let TestSaveLoadNervousSystem () =
-    let ns = CreateNervousSystemFromStructures [[(3, NeuralType(0.1,0.2,0.3,0.4,5,6,7,0.8,0.9,0.01,2,NtOffset,NpCluster,0.11,[]))]] [] []
-    let neurons = CreateIndexedNeuronsParallel ns
-
-    use memstream = new MemoryStream()
-    try
-        SaveNervousSystem ns neurons memstream
-    with
-        | exn -> printbn "Save error:   %s" exn.Message
-    memstream.Position <- int64 0
-    use binaryreader = new BinaryReader(memstream)
-    
-    let result =
-            let slns = LoadNervousSystem(memstream)
-            match slns with
-            | Some(loadedns,loadedneurons) -> 
-                let areneuronsequal (a : Neuron) (b : Neuron) =
-                    a.Axon = b.Axon &&
-                    a.Dendrites = b.Dendrites &&
-                    a.NeuralType = b.NeuralType &&
-                    (Array.forall2 (=) (a.MessageQueue.ToArray()) (b.MessageQueue.ToArray())) &&
-                    a.NeuralType = b.NeuralType &&
-                    a.ExpectedAccum = b.ExpectedAccum &&
-                    a.CurrentAccum = b.CurrentAccum &&
-                    a.Variance = b.Variance
-                
-                let nsequal = loadedns = ns
-                let neuronsequal = neurons.Length = loadedneurons.Length && Seq.forall2 (fun (a,b) (c,d) -> a= c && areneuronsequal b d) neurons loadedneurons
-                match (nsequal,neuronsequal) with
-                | (true,true) -> None
-                | (true,false) -> failwith ("Neurons not equal. Unequal neurons: " + (Seq.zip neurons loadedneurons |> Seq.filter (fun (a,b) -> a <> b) |> Seq.mapi (fun i (a,b) -> string i + ", ") |> Seq.fold (fun state item -> state+item) "")); Some("Neurons not equal.")
-                | (false,true) -> Some("NervousSystem not equal.")
-                | (false,false) -> Some("Neither the Neurons nor the NervousSystem are equal.")
-            | None -> Some("Load failed.")
-    
-    match result with
-    | None -> printbn "O - Passed Test: SaveLoadNeuralTypes"
-    | Some(msg) -> printbn "O - Failed Test: SaveLoadNeuralTypes"; printbn "%s" msg
-    
-
-
-
-
-
-
 type Stats(data : float seq) =
     member this.Minimum = Seq.min data
     member this.Maximum = Seq.max data
@@ -112,47 +64,6 @@ type TestCommand =
 | TestLoadSoevnn of LoadFrom
 | TestSetFunction of string * (int -> float)
 | TestGetFunction of (string * (int -> float)) AsyncReplyChannel
-
-
-let ExtractFile (value:string) : _ option =
-    try
-        if not (value.Contains('/')) then
-            File.AppendText(@"./"+value)
-            |> Some
-        else
-            File.AppendText(value)
-            |> Some
-    with
-        | _ -> None
-
-
-let SaveFile (filetype : string) (value : string) : _ option =
-    try
-        let path =
-            if not (value.Contains('/')) then
-                @"./"+value
-            else
-                value
-            + if value.Contains('.') then "" else ("." + filetype)
-        File.Open(path,FileMode.Create,FileAccess.ReadWrite)
-        |> Some 
-    with
-        | _ -> None
-
-let LoadFile (filetype : string) (value:string) : _ option =
-    try
-        
-        let path =
-            if not (value.Contains('/')) then
-                @"./"+value
-            else
-                value
-            + if value.Contains('.') then "" else "." + filetype
-            
-        File.OpenRead(path)
-        |> Some
-    with
-        | _ -> None
 
 let printsamples (samples : float [] option) (samplestats : Stats) (label : string) =
     printbn "%s" label
@@ -363,30 +274,6 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             false
                             previousduration
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestSaveSoevnn soevnnsavefilename ->
-                        let maybeasavefile = SaveFile "soevnn" soevnnsavefilename
-                        match maybeasavefile with
-                        | Some(savefile) ->
-                            Soevnn.Serialization.SaveNervousSystem ns newneurons savefile
-                            savefile.Flush()
-                            savefile.Close()
-                        | None -> ()
-                        processsteps 
-                            (if ispaused then iteration else iteration + 1)
-                            maxiteration
-                            currentdatetime
-                            addresses
-                            nervoussystem
-                            newneurons
-                            neurons
-                            newsensorymap
-                            threads
-                            currentfunction
-                            samplecount
-                            samples
-                            ispaused
-                            previousduration
-                            (if ispaused then currentdatetime else sessionstarttime)
                     | TestGetSamples results ->
                         let samplearrays = samples.ToArray()
                         let functionsamples = Array.map (fun (a:float[]) -> a.[0]) samplearrays
@@ -419,129 +306,6 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             ispaused
                             previousduration
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestSaveTest savename ->
-                        let maybeasavefile = SaveFile "soevnntest" savename
-                        match maybeasavefile with
-                        | Some(savefile) ->
-                            MessagePack.MessagePackSerializer.Serialize(savefile, SoevnnTestData(0,1,1,iteration,maxiteration,samplecount,samples,previousduration.Ticks+currentdatetime.Ticks-sessionstarttime.Ticks), MessagePackOptions)
-                            Soevnn.Serialization.SaveNervousSystem ns newneurons savefile
-                            savefile.Flush()
-                            savefile.Close()
-                        | None -> 
-                            ()
-                        basicsteps()
-                      // Error: Does not load Soevnn correctly even though all save/load tests come back successful. See comment for TestLoadSoevnn.
-                    | TestLoadTest loadfrom ->
-                        //try
-                            let maybealoadfile = 
-                                match loadfrom with
-                                | LoadFromFileName loadfilename ->
-                                    LoadFile "soevnntest" loadfilename
-                                    |> Option.map (fun fs -> fs :> Stream)
-                                | LoadFromStream stream ->
-                                    Some stream
-
-                            match maybealoadfile with
-                            | Some soevnnreader ->
-                                let sr = soevnnreader
-                                let testdata = 
-                                    try
-                                        Some <| MessagePack.MessagePackSerializer.Deserialize<SoevnnTestData>(sr, MessagePackOptions)
-                                    with
-                                        | :? MessagePack.MessagePackSerializationException -> None
-                                match testdata with
-                                | Some testdata ->
-                                    match (testdata.MajorVersion,testdata.MinorVersion,testdata.RevisionNumber) with
-                                    | (0,1,1) ->
-                                        let newiteration = testdata.Iteration
-                                        let newmaxiteration = testdata.MaxIteration
-                                        let newsamplecount = testdata.SampleCount
-                                        let newsamples =
-                                            testdata.Samples
-                                        let newpreviousduration = TimeSpan.FromTicks(testdata.UpTime)
-                                        let newns = Soevnn.Serialization.LoadNervousSystem sr
-                                        sr.Dispose()
-                                        match newns with
-                                        | Some (nns,nn) ->
-                                            let nna = nn
-                                            let newnna = Array.map (fun (neuraladdress,neuron : Neuron) -> (neuraladdress,new Neuron(neuron.NeuralType,neuron.Dendrites,neuron.Axon,neuron.CurrentAccumRate, neuron.ExpectedAccumRate, neuron.CurrentAccum, neuron.ExpectedAccum, neuron.Variance))) nna
-                                            processsteps
-                                                newiteration
-                                                newmaxiteration
-                                                currentdatetime
-                                                (Array.mapi (fun i (a,_) -> (a,i)) nn |> Map.ofArray)
-                                                nns
-                                                nna
-                                                newnna
-                                                (CreateSensoryMapParallel nns nna nns.Senses)
-                                                (getthreads nns)
-                                                currentfunction
-                                                newsamplecount
-                                                newsamples
-                                                ispaused
-                                                newpreviousduration
-                                                currentdatetime
-                                        | None ->
-                                            soevnnreader.Close()
-                                            basicsteps()
-                                    | _ ->
-                                        soevnnreader.Close()
-                                        basicsteps()
-                                | None ->
-                                    soevnnreader.Close()
-                                    basicsteps()
-                            | None ->
-                                basicsteps()
-                        //with
-                        //    | error -> 
-                        //        basicsteps()
-
-                    /////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // Error: Does not load Soevnn correctly even though all save/load tests come back successful. 
-                    //        This implies that it's the post processing that is causing the issue, except that 
-                    //        the nervous system isn't modified, just the neuron array, address array, and sensory map.
-                    /////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    | TestLoadSoevnn loadfrom ->
-                        try
-                            let maybealoadfile = 
-                                match loadfrom with
-                                | LoadFromFileName loadfilename ->
-                                    LoadFile "soevnn" loadfilename
-                                    |> Option.map (fun fs -> fs :> Stream)
-                                | LoadFromStream stream ->
-                                    Some stream
-
-                            match maybealoadfile with
-                            | Some soevnnreader ->
-                                let sr = soevnnreader
-                                let newns = Soevnn.Serialization.LoadNervousSystem sr
-                                match newns with
-                                | Some (nns,nn) ->
-                                    let nna = nn
-                                    let newnna = Array.map (fun (neuraladdress,neuron : Neuron) -> (neuraladdress,new Neuron(neuron.NeuralType,neuron.Dendrites,neuron.Axon,neuron.CurrentAccumRate, neuron.ExpectedAccumRate, neuron.CurrentAccum, neuron.ExpectedAccum, neuron.Variance))) nna
-                                    processsteps 
-                                        (iteration + 1)
-                                        maxiteration
-                                        currentdatetime
-                                        (Array.mapi (fun i (a,_) -> (a,i)) nn |> Map.ofArray)
-                                        nns
-                                        nna
-                                        newnna
-                                        (CreateSensoryMapParallel nns nna nns.Senses)
-                                        (getthreads nns)
-                                        currentfunction
-                                        samplecount
-                                        samples
-                                        ispaused
-                                        previousduration
-                                        (if ispaused then currentdatetime else sessionstarttime)
-                                | None ->
-                                    basicsteps()
-                            | None ->
-                                basicsteps()
-                        with
-                            | error ->
-                                basicsteps()
                     | TestSetFunction(newfunctionname,newfunction) ->
                         processsteps
                             (if ispaused then iteration else iteration + 1)
