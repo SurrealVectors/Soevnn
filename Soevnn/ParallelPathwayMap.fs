@@ -16,7 +16,7 @@ let PathMapParallel<'l,'t when 'l : comparison> (directedgraph : Map<'l,PathNode
                 let ni = ref((originnode,0))
                 if discovered.TryDequeue ni then
                     let n,i = ni.Value
-                    for adj in n.adjecent do
+                    for adj in n.adjacent do
                         if not <| results.ContainsKey(adj) then
                             if results.TryAdd(adj,(n.location,i+1)) then
                                 discovered.Enqueue((n,i+1))
@@ -67,7 +67,7 @@ let InvertDirectionParallel<'l, 't when 'l : comparison> (directedgraph : ('l*Pa
     directedgraph 
     |> Array.Parallel.iter
         (fun (l,n) -> 
-            for adj in n.adjecent do
+            for adj in n.adjacent do
                 dic.AddOrUpdate(
                     adj,
                     System.Func<_,_>(fun _ -> (n,new ConcurrentQueue<_>())),
@@ -77,7 +77,7 @@ let InvertDirectionParallel<'l, 't when 'l : comparison> (directedgraph : ('l*Pa
     [for pair in dic -> 
         let l,(n,q) = pair.Key,pair.Value
         async {
-            return (l, {location = l; adjecent = List.ofArray(q.ToArray()); data = n})
+            return (l, {location = l; adjacent = List.ofArray(q.ToArray()); data = n})
         }
     ]
     |> Async.Parallel

@@ -12,7 +12,7 @@ type SensoryMapParallel = Map<NeuralAddress,(Map<int,NeuralAddress array> * Map<
 let CreateSensoryMapParallel  (nervoussytem : NervousSystem) (neuralmap : (NeuralAddress * Neuron) array) (senses : NeuralAddress list) : SensoryMapParallel =
     let nodes =
         neuralmap
-        |> Array.Parallel.map (fun (na : NeuralAddress, n : Neuron) -> (na, {location = na; data = n; adjecent = n.Dendrites |> List.unzip3 |> (fun (a,_,_) -> a)}))
+        |> Array.Parallel.map (fun (na : NeuralAddress, n : Neuron) -> (na, {location = na; data = n; adjacent = n.Dendrites |> List.unzip3 |> (fun (a,_,_) -> a)}))
         |> InvertDirectionParallel
         |> Map.ofArray
     let pathmaps =

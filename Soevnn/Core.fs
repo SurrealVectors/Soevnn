@@ -705,7 +705,7 @@ let ProcessAll (nervoussytem : NervousSystem) (connectivitymap : ConnectivityMap
 let CreateSensoryMap  (nervoussytem : NervousSystem) (neuralmap : Map<NeuralAddress,Neuron>) (senses : NeuralAddress list) : SensoryMap =
     let nodes =
         neuralmap
-        |> Map.map (fun (na : NeuralAddress) (n : Neuron) -> {location = na; data = n; adjecent = n.Dendrites |> List.unzip3 |> (fun (a,_,_) -> a)})
+        |> Map.map (fun (na : NeuralAddress) (n : Neuron) -> {location = na; data = n; adjacent = n.Dendrites |> List.unzip3 |> (fun (a,_,_) -> a)})
     let pathmaps =
         senses
         |> List.map (PathMap nodes)
