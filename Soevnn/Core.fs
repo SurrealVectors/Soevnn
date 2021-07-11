@@ -419,15 +419,15 @@ let CreateSensoryConnectionMap (cluster : NeuralAddress list) (sensoryadaptions 
     let getratio (smbd : Map<int,NeuralAddress list>, smbn : Map<NeuralAddress,int>) =
         cluster
         |> List.fold
-            (fun (count,state) (n:NeuralAddress) ->
-                if smbn.ContainsKey n then (count+1, state + smbn.[n]) else (count,state))
+            (fun (count,state) (n:NeuralAddress) -> // count is the number of path-connected neurons. state is the sum of the distances to the sense. 
+                if smbn.ContainsKey n then (count+1, state + smbn.[n]) else (count,state)) // if the neuron is path-connected to the sense, include it in the count and sum.
             (0,0)
-        |> (fun (count,a) -> if count > 0 then (float a * float a / float count) else 1.0)
-    let ratios =
+        |> (fun (count,a) -> if count > 0 then (float a * float a / float count) else 1.0) // if there is at least one path-connected neuron, then return the square of the summed distances divided by the number of path connected neurons.
+    let ratios = // the ratios for each sense in the sensory maps. 
         sensorymaps
         |> Map.toList
         |> List.map (snd >> getratio)
-    let probs =
+    let probs = // creates probabilities to promote each sense's tree to have a particular growth pattern, growing wider the deeper it is. 
         cluster
         |> List.map
             (fun n ->
@@ -450,7 +450,7 @@ let CreateSensoryConnectionMap (cluster : NeuralAddress list) (sensoryadaptions 
                 )|>snd,
                 n)
         |> List.filter (fun (w,_) -> w > 0.0)
-    let indices =
+    let indices = // converts the probabilities into indices/boundaries to create a probability map in the form of a partition tree.
         if probs.IsEmpty then
             []
         else if probs.Length = 1 then
@@ -464,36 +464,36 @@ let CreateSensoryConnectionMap (cluster : NeuralAddress list) (sensoryadaptions 
             ]
             |> List.scan (fun (accum, _) (weight, i) -> (weight+accum,i)) (0.0, snd probs.Head)
             |> duplicatelastitem (fun i -> i + (probs |> listlast |> fst))
-    if indices.IsEmpty then
+    if indices.IsEmpty then // if there are no sensory maps, returns nothing.
         None
-    else
+    else // otherwise returns a probability in the form of a balanced partition tree.
         AddItemsHigh
             indices
             (Item(snd probs.Head))
         |> Balance |> PartitionTree |> Some
             
     
-
+/// <summary> Selects a neuron to form a synaptic connection from. </summary>
 let SelectNeuron (rand : System.Random) (neuron : NeuralAddress) (ns : NervousSystem) (map : ConnectivityMap) (sensorymap : SensoryMap) : NeuralAddress =
     let defaultto0 option = match option with | Some value -> value | None -> 0
     let defaultto0d option = match option with | Some value -> value | None -> decimal 0.0
     
-    let relation, structuresmap = map.[defaultto0d map.HighestKey * decimal(rand.NextDouble())];
-    let groupsmap = structuresmap.[rand.Next(structuresmap.HighestKey|>defaultto0)]
-    let clustersmap = groupsmap.[rand.Next(groupsmap.HighestKey|>defaultto0)]
-    let nr, s, g, c = clustersmap.[defaultto0d clustersmap.HighestKey * decimal(rand.NextDouble())]
+    let relation, structuresmap = map.[defaultto0d map.HighestKey * decimal(rand.NextDouble())]; // Select a neural relation randomly. The possibilities are weighted by how many possible connections there are for each.
+    let groupsmap = structuresmap.[rand.Next(structuresmap.HighestKey|>defaultto0)] // Select a structures randomly. The possibilities are weighted by how many possible connections there are for each.
+    let clustersmap = groupsmap.[rand.Next(groupsmap.HighestKey|>defaultto0)] // Select a group randomly. The possibilities are weighted by how many possible connections there are for each.
+    let nr, s, g, c = clustersmap.[defaultto0d clustersmap.HighestKey * decimal(rand.NextDouble())] // Select a cluster randomly. The possibilities are weighted by how many possible connections there are for each.
     let nt = ns.NeuralTypeOf neuron
-    let rn () = NeuralAddress(s,g,c,rand.Next(ns.Structures.[s].Groups.[g].NeuralType.ClusterSize))
-    if rand.NextDouble() < nt.SensoryAdaptionRate then
-        let scm = CreateSensoryConnectionMap (ns.Structures.[s].Groups.[g].Clusters.[c].Neurons) nt.SensoryAdaptions sensorymap
-        if scm.IsSome then
-            scm.Value.[rand.NextDouble() * scm.Value.HighestKey.Value]
+    let rn () = NeuralAddress(s,g,c,rand.Next(ns.Structures.[s].Groups.[g].NeuralType.ClusterSize)) // Selects a neuron within the cluster randomly with even weighting.
+    if rand.NextDouble() < nt.SensoryAdaptionRate then // Selects whether or not the neuron forms a path-connection to a sense.
+        let scm = CreateSensoryConnectionMap (ns.Structures.[s].Groups.[g].Clusters.[c].Neurons) nt.SensoryAdaptions sensorymap // If it does, create the probability map of the cluster based on the sensory maps.
+        if scm.IsSome then 
+            scm.Value.[rand.NextDouble() * scm.Value.HighestKey.Value] // If there is at least one neuron in the cluster that is path-connected to at least one of the senses in the sensory map then one is selected.
         else
-            rn()
+            rn() // Unweighted selection of neuron.
     else
-        rn()
+        rn() // Unweighted selection of neuron.
 
-
+/// <summary> Unused. Creates a path connection to a muscle. </summary>
 let CreateSensoryMusclePathConnection (rand : System.Random) (ns : NervousSystem) (cmap : ConnectivityMap) (sensorymap : SensoryMap) (neuraladdress : NeuralAddress) (neuron : Neuron) =
     let randvalue = rand.NextDouble()
     let rec connection index results =
@@ -516,9 +516,12 @@ let CreateSensoryMusclePathConnection (rand : System.Random) (ns : NervousSystem
             results
     connection 1 neuron.Dendrites
     
+/// <summary> Creates a synaptic connection for a neuron. </summary>
 let CreateConnection (rand : System.Random) (ns : NervousSystem) (cmap : ConnectivityMap) (sensorymap : SensoryMap) (neuraladdress : NeuralAddress) (neuron : Neuron) =
     let randvalue = rand.NextDouble()
     let rec connection index results =
+        // Forms a new connection if there still less then the minimum number of dendritic synapses for the neuron, or if there are less than the maximum and there is a successful chance based on the adaption rate and reduced by how many connections have already been made for this step of processing.
+        // TODO: neuron.NeuralType.AxonalSynapses should be replaced with neuron.NeuralType.DendritricSynapsesMax
         if index < neuron.NeuralType.AxonalSynapses - neuron.Dendrites.Length && (index < neuron.NeuralType.DendritricSynapsesMin - neuron.Dendrites.Length || randvalue < neuron.NeuralType.AdaptionRate * System.Math.Pow(0.5, float index)) then
             let selectedneuron =
                 SelectNeuron
@@ -529,8 +532,8 @@ let CreateConnection (rand : System.Random) (ns : NervousSystem) (cmap : Connect
                     sensorymap
             (
                 selectedneuron
-                ,(rand.NextDouble() < neuron.NeuralType.DirectInverseBalance)
-                , ref 1.0
+                ,(rand.NextDouble() < neuron.NeuralType.DirectInverseBalance) // Randomly selects whether it should be a direct or inverted connection. 
+                , ref 1.0 // The default synaptic weight.
             ) 
             :: results
             |> connection (index + 1)
@@ -541,7 +544,7 @@ let CreateConnection (rand : System.Random) (ns : NervousSystem) (cmap : Connect
     
                 
         
-            
+/// <summary> Creates synaptic connections for all neurons in the nervous system. </summary>
 let CreateConnections (rand : System.Random) (ns : NervousSystem) (neurons : Map<NeuralAddress,Neuron>) (cmap : ConnectivityMap) (sensorymap : SensoryMap) =
     Map.map 
         (fun (na: NeuralAddress) (n: Neuron) ->
@@ -558,13 +561,14 @@ let CreateConnections (rand : System.Random) (ns : NervousSystem) (neurons : Map
         )
         neurons
 
+/// <summary> Adjusts the weight of the neurons to so the sum of the weighted inputs tend towards minimal activity when the individual pre-synaptic neurons have activity. </summary>
 let SubProcessBalanceSynapses (n : Neuron) input (map : NeuralAddress -> Neuron) sum (count : int) =
     input
     |> List.iter 
         (fun (na,isinverse,mult) -> 
             let s = map(na)
-            let axon = n.Axon
-            let value = 
+            let axon = n.Axon // The raw input.
+            let value = // The weighted and oriented value of the input.
                 if isinverse then
                     match map(na).NeuralType.NeuralType with
                     | NtOffset -> -axon * !mult
@@ -572,7 +576,7 @@ let SubProcessBalanceSynapses (n : Neuron) input (map : NeuralAddress -> Neuron)
                     | NtSpiking -> (1.0 - axon) * !mult
                 else
                     axon * !mult
-            if isinverse then
+            if isinverse then // While compensating for the orientation, adjusts the weight so the sum of the inputs is closer to 0. The adjustment is proportional to the neuron's current activity relative to it's expected activity. This is bounded between 0 and the expected activity.
                 mult :=
                     (s.ExpectedAccumRate * (max 0.0 <| axon)) * (max 1.0 <| (s.ExpectedAccum - (sum - value)) / value * !mult)
                     + (1.0 - s.ExpectedAccumRate * (max 0.0 <| axon)) * !mult
@@ -582,14 +586,15 @@ let SubProcessBalanceSynapses (n : Neuron) input (map : NeuralAddress -> Neuron)
                     + (1.0 - s.ExpectedAccumRate * (max 0.0 <| axon)) * !mult
         )
 
+/// <summary> Updates the currentaccum/short-term average and the expectedaccum/long-term average. </summary>
 let SubprocessLearn (n : Neuron) sum count =
     
     let inputsum,inputcount = sum, count
     let input = inputsum //   / float inputcount
-    let currentaccum = input * n.CurrentAccumRate + (1.0-n.CurrentAccumRate) * n.CurrentAccum
-    let expectedaccum = input * n.ExpectedAccumRate + (1.0-n.ExpectedAccumRate) * n.ExpectedAccum
-    let expectedvar = abs(input - expectedaccum) * n.ExpectedAccumRate + (1.0-n.ExpectedAccumRate) * n.Variance
-    match n.NeuralType.NeuralType with
+    let currentaccum = input * n.CurrentAccumRate + (1.0-n.CurrentAccumRate) * n.CurrentAccum // Updates the currentaccum. This is a locally weighted average of the input over time.
+    let expectedaccum = input * n.ExpectedAccumRate + (1.0-n.ExpectedAccumRate) * n.ExpectedAccum // Updates the currentaccum. This is a less locally weighted average of the input over time.
+    let expectedvar = abs(input - expectedaccum) * n.ExpectedAccumRate + (1.0-n.ExpectedAccumRate) * n.Variance // Updates the Variance. This is a locally weighted estimated variance. 
+    match n.NeuralType.NeuralType with // Returns the currentaccum relative to the expectedaccum and normalizes the result over time.
     | NtScaling ->
         let signal = if currentaccum = expectedaccum then 1.0 else if expectedaccum = 0.0 then currentaccum else currentaccum / expectedaccum
         (
@@ -615,13 +620,14 @@ let SubprocessLearn (n : Neuron) sum count =
             signal / expectedvar
         )
 
+/// <Summary> Breaks the synaptic connections which are the worst fit as input. </summary>
 let SubprocessAdapt (map : NeuralAddress -> Neuron) (rand : System.Random) (neuron : Neuron) sum count =
     let nt = neuron.NeuralType
     let input = neuron.Dendrites
     let avg = sum / float count
     let worst = 
         List.sortByDescending
-            (fun (na,isinverse,mult) ->
+            (fun (na,isinverse,mult) -> // TODO: This should be based on the alignment of the input compared to the expectation, and the output.
                 abs(
                     if isinverse then
                         match map(na).NeuralType.NeuralType with
@@ -644,6 +650,7 @@ let SubprocessAdapt (map : NeuralAddress -> Neuron) (rand : System.Random) (neur
             Some (na,isinverse,mult))
     worst)
 
+/// <Summary> Processes a neuron. </summary> 
 let ProcessNeuron (neuraladdress : NeuralAddress) (nervoussytem : NervousSystem) (connectivitymap : ConnectivityMap) (sensorymap : SensoryMap) (map : NeuralAddress->Neuron) (rand : System.Random) (sense : float option) =
     let neuron = map neuraladdress
     let nt = neuron.NeuralType
@@ -694,7 +701,7 @@ let ProcessNeuron (neuraladdress : NeuralAddress) (nervoussytem : NervousSystem)
         newvariance)
 
 
-
+/// <summary> Creates the index of addresses to neurons. </summary>
 let CreateIndexedNeurons (ns : NervousSystem) =
     [for s in ns.Structures do 
         yield!
@@ -722,7 +729,7 @@ let CreateIndexedNeurons (ns : NervousSystem) =
             ]
     ] |> Map.ofList
 
-/// <summary>Processes one step of all neural activity. </summary>
+/// <summary> Sequentially processes one step of all neural activity. </summary>
 /// <param name="nervoussytem">The Nervous System. </param>
 /// <param name="connectivitymap">The probability map of particular synaptic connections forming.</param>
 /// <param name="neuralmap">The map from neural addresses to the neurons to be processed.</param>
@@ -734,14 +741,16 @@ let ProcessAll (nervoussytem : NervousSystem) (connectivitymap : ConnectivityMap
     neuralmap
     |> Map.map (fun (na:NeuralAddress) (n:Neuron) -> ProcessNeuron na nervoussytem connectivitymap sensorymap (fun na -> neuralmap.[na]) rand (if senses.ContainsKey(na) then Some(senses.[na]) else None))
         
+// TODO : Alter the sensory map to be updatable, rather than having to be fully recreated every step.
+/// <summary> Creates the current sensory map for the nervous system. </summary>
 let CreateSensoryMap  (nervoussytem : NervousSystem) (neuralmap : Map<NeuralAddress,Neuron>) (senses : NeuralAddress list) : SensoryMap =
-    let nodes =
+    let nodes = // The neurons converted to path nodes.
         neuralmap
         |> Map.map (fun (na : NeuralAddress) (n : Neuron) -> {location = na; data = n; adjacent = n.Dendrites |> List.unzip3 |> (fun (a,_,_) -> a)})
-    let pathmaps =
+    let pathmaps = // The path maps formed from the nodes.
         senses
         |> List.map (PathMap nodes)
-    let depthsmaps =
+    let depthsmaps = // The depth maps extracted from the path maps.
         pathmaps
         |> List.map 
             (fun (_,nmbd) -> 
@@ -758,7 +767,7 @@ let CreateSensoryMap  (nervoussytem : NervousSystem) (neuralmap : Map<NeuralAddr
     |> Map.ofList
 
 
-
+/// <summary> Unused. Gets the results of the muscles. </summary>
 let GetMuscleResults neuralmap muscles =
     neuralmap
     |> Map.filter (fun (na : NeuralAddress) (_) -> List.contains na muscles)
