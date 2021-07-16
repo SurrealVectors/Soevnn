@@ -3,7 +3,7 @@ Soevnn is an acronym for Self-Organising Estimated-Variance Neural Net. It is co
 
 Also included is a console program to facilitate training, testing, and analysis of individual Soevnns. 
 
- 
+Please note: this is a work in progress. 
 
 
 Credits:  
