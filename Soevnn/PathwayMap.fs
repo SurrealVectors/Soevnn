@@ -31,7 +31,7 @@ let PathMap<'l,'t when 'l : comparison> (directedgraph : Map<'l,PathNode<'l,'t>>
     // Parses the graph. It makes a list of nodes which have possible paths to the destination. Each node is assigned which adjacent node is the quickest way to the destination node, as well as the distance there.
     // d/dis is a list of already discovered locations. Marks these so they aren't redundantly processed. 
     // n is the node currently being processed
-    // r/result is the list processed nodes.
+    // r/result is the list of processed nodes.
     // i is the distance from the destination as measured by the number of connections in the path.
     let rec pathmap d n r i : 'l list * PathNode<'l,'t*('l*int)> list =
         // Recursively explores the graph by following the connections from the destination. 
@@ -47,13 +47,13 @@ let PathMap<'l,'t when 'l : comparison> (directedgraph : Map<'l,PathNode<'l,'t>>
 
     // Reorganizes the path list to group the nodes by distance.
     let rec clump(result : _ list) (step : int)  (list : _ list)  =
-        match List.choose (fun (l, (n,i)) -> if i = step then Some n else None) list with
-        | [] -> result
+        match List.choose (fun (l, (n,i)) -> if i = step then Some n else None) list with // Chooses all nodes of a given path-length.
+        | [] -> result // If there are none, than there can't be any paths of longer lengths, so return the result.
         | nr -> 
             clump
-                ((step, nr) :: result)
-                (step + 1)
-                (List.filter (fun (l, (n,i)) -> i <> step) list)
+                ((step, nr) :: result) // Add current path length and the list of nodes at that distance to the results.
+                (step + 1) // Increase the path length.
+                (List.filter (fun (l, (n,i)) -> i <> step) list) // Filter out these now-processed nodes.
 
     if directedgraph.Count = 0 then
         (Map.empty,Map.empty)
