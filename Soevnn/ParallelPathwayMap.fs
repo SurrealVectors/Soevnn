@@ -75,7 +75,7 @@ let InvertDirectionParallel<'l, 't when 'l : comparison> (directedgraph : ('l*Pa
                     System.Func<_,_,_>(fun a (_,q : 'l ConcurrentQueue) -> q.Enqueue(l); (n,q)))
                 |> ignore
         )
-    [for pair in dic -> // Replace the adjacents that connect from each node with the queue of adjecents which connect to that node.
+    [for pair in dic -> // Replace the adjacents that connect from each node with the queue of adjacents which connect to that node.
         let l,(n,q) = pair.Key,pair.Value
         async {
             return (l, {location = l; adjacent = List.ofArray(q.ToArray()); data = n}) // TODO: Optimize the queue-to-list conversion. ; TODO: Change "data = n" to "data = n.data".

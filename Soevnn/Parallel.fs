@@ -3,23 +3,23 @@ open Soevnn.Core
 open Soevnn.Utilities.PathwayMap
 open Soevnn.Parallel.PathwayMap
 open Soevnn.Utilities.Partitions
-//let Parallel = System.Threading.Tasks.Parallel
             
-
+/// <summary> Contains the path maps to the senses to be used for parallel processing. </summary>
 type SensoryMapParallel = Map<NeuralAddress,(Map<int,NeuralAddress array> * Map<NeuralAddress,int>)>
 
-
+// TODO : Alter the sensory map to be updatable, rather than having to be fully recreated every step.
+/// <summary> Parallel version of CreateSensoryMap. Creates the current sensory map for the nervous system. </summary>
 let CreateSensoryMapParallel  (nervoussytem : NervousSystem) (neuralmap : (NeuralAddress * Neuron) array) (senses : NeuralAddress list) : SensoryMapParallel =
-    let nodes =
+    let nodes = // The neurons converted to path nodes.
         neuralmap
         |> Array.Parallel.map (fun (na : NeuralAddress, n : Neuron) -> (na, {location = na; data = n; adjacent = n.Dendrites |> List.unzip3 |> (fun (a,_,_) -> a)}))
         |> InvertDirectionParallel
         |> Map.ofArray
-    let pathmaps =
+    let pathmaps = // The path maps formed from the nodes.
         senses
         |> List.toArray
         |> Array.Parallel.map (PathMapParallel nodes 5 3)
-    let depthsmaps =
+    let depthsmaps = // The depth maps extracted from the path maps.
         pathmaps
         |> Array.Parallel.map 
             (fun (_,nmbd) -> 
@@ -30,6 +30,7 @@ let CreateSensoryMapParallel  (nervoussytem : NervousSystem) (neuralmap : (Neura
     Array.Parallel.init senses.Length (fun i -> (senses.[i],(pathmaps.[i] |> snd, depthsmaps.[i])))
     |> Map.ofArray
 
+/// <summary> Parallel version of CreateSensoryConnectionMap. Creates a probability map to form a connection from a neuron to any neuron which is already path-connected to at least one sense.  </summary>
 let CreateSensoryConnectionMapParallel (cluster : NeuralAddress list) (sensoryadaptions : SensoryAdaption list) (sensorymaps : SensoryMapParallel) = 
     
     let listlast (l : _ list) = l.[l.Length-1]
@@ -38,15 +39,15 @@ let CreateSensoryConnectionMapParallel (cluster : NeuralAddress list) (sensoryad
     let getratio (smbd : Map<int,NeuralAddress array>, smbn : Map<NeuralAddress,int>) =
         cluster
         |> List.fold
-            (fun (count,state) (n:NeuralAddress) ->
-                if smbn.ContainsKey n then (count+1, state + smbn.[n]) else (count,state))
+            (fun (count,state) (n:NeuralAddress) -> // count is the number of path-connected neurons. state is the sum of the distances to the sense. 
+                if smbn.ContainsKey n then (count+1, state + smbn.[n]) else (count,state))  // if the neuron is path-connected to the sense, include it in the count and sum.
             (0,0)
-        |> (fun (count,a) -> if count > 0 then (float a * float a / float count) else 1.0)
-    let ratios =
+        |> (fun (count,a) -> if count > 0 then (float a * float a / float count) else 1.0) // if there is at least one path-connected neuron, then return the square of the summed distances divided by the number of path connected neurons.
+    let ratios = // the ratios for each sense in the sensory maps.
         sensorymaps
         |> Map.toList
         |> List.map (snd >> getratio)
-    let probs =
+    let probs = // creates probabilities to promote each sense's tree to have a particular growth pattern, growing wider the deeper it is. 
         cluster
         |> List.map
             (fun n ->
@@ -69,7 +70,7 @@ let CreateSensoryConnectionMapParallel (cluster : NeuralAddress list) (sensoryad
                 )|>snd,
                 n)
         |> List.filter (fun (w,_) -> w > 0.0)
-    let indices =
+    let indices = // converts the probabilities into indices/boundaries to create a probability map in the form of a partition tree.
         if probs.IsEmpty then
             []
         else if probs.Length = 1 then
@@ -83,9 +84,9 @@ let CreateSensoryConnectionMapParallel (cluster : NeuralAddress list) (sensoryad
             ]
             |> List.scan (fun (accum, _) (weight, i) -> (weight+accum,i)) (0.0, snd probs.Head)
             |> duplicatelastitem (fun i -> i + (probs |> listlast |> fst))
-    if indices.IsEmpty then
+    if indices.IsEmpty then // if there are no sensory maps, returns nothing.
         None
-    else
+    else // otherwise returns a probability in the form of a balanced partition tree.
         AddItemsHigh
             indices
             (Item(snd probs.Head))
@@ -93,7 +94,7 @@ let CreateSensoryConnectionMapParallel (cluster : NeuralAddress list) (sensoryad
 
 
 
-
+/// <summary> Parallel version of SelectNeuron. Selects a neuron to form a synaptic connection from. </summary>
 let SelectNeuronParallel (rand : System.Random) (neuron : NeuralAddress) (ns : NervousSystem) (map : ConnectivityMap) (sensorymap : SensoryMapParallel) : NeuralAddress =
     let defaultto0 option = match option with | Some value -> value | None -> 0
     let defaultto0d option = match option with | Some value -> value | None -> decimal 0.0
@@ -113,7 +114,7 @@ let SelectNeuronParallel (rand : System.Random) (neuron : NeuralAddress) (ns : N
     else
         rn()
 
-
+/// <summary> Unused. Parallel version of CreateSensoryMusclePathConnection. Creates a path connection to a muscle. </summary>
 let CreateSensoryMusclePathConnectionParallel (rand : System.Random) (ns : NervousSystem) (cmap : ConnectivityMap) (sensorymap : SensoryMapParallel) (neuraladdress : NeuralAddress) (neuron : Neuron) =
     let randvalue = rand.NextDouble()
     let rec connection index results =
@@ -136,6 +137,7 @@ let CreateSensoryMusclePathConnectionParallel (rand : System.Random) (ns : Nervo
             results
     connection 1 neuron.Dendrites
     
+/// <summary> Parallel version of CreateConnection. Creates a synaptic connection for a neuron. </summary>
 let CreateConnectionParallel (rand : System.Random) (ns : NervousSystem) (cmap : ConnectivityMap) (sensorymap : SensoryMapParallel) (neuraladdress : NeuralAddress) (neuron : Neuron) =
     let randvalue = rand.NextDouble()
     let rec connection index results =
