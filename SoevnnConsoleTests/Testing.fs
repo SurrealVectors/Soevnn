@@ -9,7 +9,7 @@ open Soevnn.Serialization
 open Microsoft.FSharp.Reflection
 open Soevnn.Console.Utilities
 
-
+/// <summary> Gets the kind of neural pathway by index. </summary>
 let getpathway i =
     if i = 0 then
         NpCluster
@@ -22,6 +22,7 @@ let getpathway i =
     else
         NpCluster
 
+/// <summary> A list of input functions to text the neural networks against. </summary>
 let inputfunctions =
     Map.ofList
         [
@@ -30,6 +31,7 @@ let inputfunctions =
             ("mod", (fun i -> 100.0 * Math.IEEERemainder(0.1 * float i, 1.0)))
         ]
 
+/// <summary> A set of statistics for a given sequence of data. </summary>
 type Stats(data : float seq) =
     member this.Minimum = Seq.min data
     member this.Maximum = Seq.max data
@@ -40,31 +42,35 @@ type Stats(data : float seq) =
     member this.Variance = Seq.averageBy (fun d -> pown (d - this.Average) 2) data |> Math.Sqrt
     member this.Range = this.Maximum - this.Minimum
 
+/// <summary> The kind of place to load from. </summary>
 type LoadFrom =
 | LoadFromFileName of string
 | LoadFromStream of Stream
 
+/// <summary> The kind of place to save to. </summary>
 type SaveTo =
 | SaveToFileName of string
 | SaveToBinaryWriter of BinaryWriter
 
+/// <summary> A command to give to a particular test. </summary>
 type TestCommand =
-| TestPause
-| TestContinue
-| TestStep
-| TestSaveTest of string
-| TestSaveSoevnn of string
-| TestSetRemainingIterations of int option
-| TestGetRemainingIterations of int option AsyncReplyChannel
-| TestSetSampleCount of int
-| TestGetSampleCount of int AsyncReplyChannel
-| TestGetSamples of (Stats * Stats * Stats * Stats) AsyncReplyChannel
-| TestGetProgress of ((int * TimeSpan) * (int * TimeSpan) option) AsyncReplyChannel // (CurrentIterations, TimeLapsed), (TotalIterations, EstimatedTimeRemaining)
-| TestLoadTest of LoadFrom
-| TestLoadSoevnn of LoadFrom
-| TestSetFunction of string * (int -> float)
-| TestGetFunction of (string * (int -> float)) AsyncReplyChannel
+| TestPause // Pauses a running test.
+| TestContinue // Continues a paused test.
+| TestStep // Runs a single step of a paused test.
+| TestSaveTest of string // Saves a test.
+| TestSaveSoevnn of string // Saves a test's Soevnn.
+| TestSetRemainingIterations of int option // Set how many more steps to process before pausing. If no number is given, instead continue running indefinitely.
+| TestGetRemainingIterations of int option AsyncReplyChannel // Gets how many more steps to process before pausing. If no number is given, this indicate the test will continue to run indefinitely.
+| TestSetSampleCount of int // Sets how many of the most recent samples should be gathered. 
+| TestGetSampleCount of int AsyncReplyChannel // Returns how many of the most recent samples are to be gathered.
+| TestGetSamples of (Stats * Stats * Stats * Stats) AsyncReplyChannel // Gets the statistics of the most recent samples. The stats are of the input function, the output of the Soevnn, the signed errors, and the unsigned errors.
+| TestGetProgress of ((int * TimeSpan) * (int * TimeSpan) option) AsyncReplyChannel // Gets the progess of the test in the form of: (CurrentIterations, TimeLapsed), (TotalIterations, EstimatedTimeRemaining)
+| TestLoadTest of LoadFrom // Loads a test.
+| TestLoadSoevnn of LoadFrom // Loads a Soevnn.
+| TestSetFunction of string * (int -> float) // Sets the input function.
+| TestGetFunction of (string * (int -> float)) AsyncReplyChannel // Gets the input function.
 
+/// <summary> Prints the statistics of a particular sample. </summary>
 let printsamples (samples : float [] option) (samplestats : Stats) (label : string) =
     printbn "%s" label
     if samples.IsSome then printbn "%A" samples.Value
@@ -75,6 +81,7 @@ let printsamples (samples : float [] option) (samplestats : Stats) (label : stri
     printbn "Average output: %f" samplestats.Average
     printbn "Variance of output: %f" samplestats.Variance
     
+/// <summary> Logs the samples and the their statistics. </summary>
 let logsamples (writer) (samples : float [] option) (samplesstats : Stats) (label : string) =
     fprintfn writer "%s" label
     if samples.IsSome then fprintfn writer "%A" samples.Value
