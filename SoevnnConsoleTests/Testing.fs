@@ -92,27 +92,28 @@ let logsamples (writer) (samples : float [] option) (samplesstats : Stats) (labe
     fprintfn writer "Average output: %f" samplesstats.Average
     fprintfn writer "Variance of output: %f" samplesstats.Variance
 
+/// <summary> Initiates the a test of a Soevnn. Contains concurrent queues for passing messages to and from the ongoing test. </summary>
 let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int option) (testingsteps : int) (fname, inputfunction) (logfile: StreamWriter option) silent (messagequeue : System.Collections.Concurrent.ConcurrentQueue<string> option) (commandqueue : MailboxProcessor<TestCommand> option) = 
     let initialdatetime = DateTime.UtcNow
     if not silent then
         printbn "Start Time: %s" <| DateTime.Now.ToShortTimeString()
     
-    
-    let input = NeuralAddress(0,0,0,0)
-    let error = NeuralAddress(0,0,0,2)
-    let mimic = NeuralAddress(0,0,0,1)
-    let senses = [input;error]
-    let rand = match seed with | Some(seedvalue) -> System.Random(seedvalue) | None -> System.Random()
+    // The neurons handling inputs and outputs, referenced via neural addresses. 
+    let input = NeuralAddress(0,0,0,0) // input
+    let error = NeuralAddress(0,0,0,2) // input
+    let mimic = NeuralAddress(0,0,0,1) // output
+    let senses = [input;error] // list of inputs
+    let rand = match seed with | Some(seedvalue) -> System.Random(seedvalue) | None -> System.Random() // Random number generator used for forming and breaking synaptic connections.
     
     
 
 
-    let nt = 
+    let nt = // List of neural types.
         List.map 
             (fun (intrainterbalancegroup, intrainterbalancestructure, intrainterbalancecluster, directinversebalance, clustersize, currentaccumrate, expectedaccumrate, adaptionrate, synapsecountmin, synapsecountmax, pathwaytype) -> 
                 (NeuralType(intrainterbalancegroup,intrainterbalancestructure,intrainterbalancecluster, directinversebalance,synapsecountmin, synapsecountmax,synapsecountmax,adaptionrate,currentaccumrate,expectedaccumrate,clustersize,NtOffset,getpathway pathwaytype,0.25,[SensoryAdaption(input, 2.0, 1.0); SensoryAdaption(error, 0.5, 0.25)])))
             neuraltypes
-    let nsl =
+    let nsl = // List of neural structures.
         neuralstructures
         |> List.choose
             (fun ns ->
@@ -121,41 +122,41 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                 |> Option.map (List.map (fun (cnt,index) -> (cnt,nt.[index])))
             )
 
-    let ns = CreateNervousSystemFromStructures nsl senses [mimic]
-    let cmap = CreateConnectivityMap ns
+    let ns = CreateNervousSystemFromStructures nsl senses [mimic] // The nervous system.
+    let cmap = CreateConnectivityMap ns // The connectivity map.
     let indexedneurons = (CreateIndexedNeuronsParallel ns)
     let smap = CreateSensoryMapParallel ns (indexedneurons) senses 
     let initialneurons= 
         CreateConnectionsParallel rand ns indexedneurons (cmap) (smap) 
-    let initialaddresses =
+    let initialaddresses = // A map from neural addresses to array indices of the neurons.
         initialneurons |> Array.mapi (fun i (k,v) -> (k,i)) |> Map.ofArray
-    let processstep iteration addresses neurons newneurons smap threads currentfunction  : ((NeuralAddress * Neuron) []) * SensoryMapParallel * float [] =
+    let processstep iteration addresses neurons newneurons smap threads currentfunction  : ((NeuralAddress * Neuron) []) * SensoryMapParallel * float [] = // Processes a single step.
         (
-            async { return (ProcessAllParallel ns cmap smap rand addresses neurons newneurons threads (Map.ofList [(input, inputfunction iteration);(error,(snd neurons.[addresses.[mimic]]).Axon - currentfunction (iteration - 1))]) (Map.ofList [(mimic,0)]))}
+            async { return (ProcessAllParallel ns cmap smap rand addresses neurons newneurons threads (Map.ofList [(input, inputfunction iteration);(error,(snd neurons.[addresses.[mimic]]).Axon - currentfunction (iteration - 1))]) (Map.ofList [(mimic,0)]))} // Processes the neurons. 
             ,
-            async { return (CreateSensoryMapParallel ns neurons senses)}
+            async { return (CreateSensoryMapParallel ns neurons senses)} // Updates the sensory map.
         ) 
         |> (fun (procall,createsmap) -> 
             let taskprocall = Async.StartAsTask procall
             let taskcreatesmap = Async.StartAsTask createsmap
             (
-                taskprocall.GetAwaiter().GetResult(),
-                taskcreatesmap.GetAwaiter().GetResult()
-            )
+                taskprocall.GetAwaiter().GetResult(),   // Wait for...
+                taskcreatesmap.GetAwaiter().GetResult() // ... these results.
+            ) 
         )
         |> (fun ((a,b),c) -> 
-            (a,c,Array.concat [[|(inputfunction iteration)|];b]))
+            (a,c,Array.concat [[|(inputfunction iteration)|];b])) 
 
-    let rec processsteps (iteration : int) (maxiteration : int Option) previousdatetime addresses (nervoussystem : NervousSystem) (neurons : (NeuralAddress*Neuron)[]) (newneurons : (NeuralAddress*Neuron)[]) smap threads currentfunction samplecount (samples : System.Collections.Generic.Queue<float []>) ispaused (previousduration : TimeSpan) (sessionstarttime : DateTime) : ((NeuralAddress * Neuron) []) * SensoryMapParallel * float [] [] =
+    let rec processsteps (iteration : int) (maxiteration : int Option) previousdatetime addresses (nervoussystem : NervousSystem) (neurons : (NeuralAddress*Neuron)[]) (newneurons : (NeuralAddress*Neuron)[]) smap threads currentfunction samplecount (samples : System.Collections.Generic.Queue<float []>) ispaused (previousduration : TimeSpan) (sessionstarttime : DateTime) : ((NeuralAddress * Neuron) []) * SensoryMapParallel * float [] [] = // The ongoing process that manages the test.
         let currentdatetime = if ispaused then sessionstarttime else DateTime.UtcNow
         let currenttimelapsed = TimeSpan.FromTicks(currentdatetime.Subtract(sessionstarttime).Ticks + previousduration.Ticks)
         let setl = 
             match maxiteration with
             | Some maxiter ->
-                TimeSpan.FromTicks(currenttimelapsed.Ticks * int64 (maxiter - iteration) / int64 iteration) |> Some
+                TimeSpan.FromTicks(currenttimelapsed.Ticks * int64 (maxiter - iteration) / int64 iteration) |> Some // Estimates the remaining time for a test with a set number of steps.
             | None -> None
         
-        let etls =
+        let etls = // Converts the remaining time to a user-readable format.
             match setl with
             | Some etl ->
                 if etl.TotalDays > 1.0 then 
@@ -170,21 +171,21 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                     (etl.TotalMilliseconds |> int |> string) + " Milliseconds"
             | None -> "N/A"
         
-        if maxiteration.IsSome && (100000 * iteration / maxiteration.Value) % 100  = 0 then
+        if maxiteration.IsSome && (100000 * iteration / maxiteration.Value) % 100  = 0 then // Checks if the test has concluded with the requested number of steps.
             if (not silent) && messagequeue.IsNone then
                 printbn "%f%% Training Complete / %s Estimated Time Remaining" (float(1000 * iteration / maxiteration.Value) * 0.1) etls
             if messagequeue.IsSome then
                 messagequeue.Value.Enqueue(sprintf "%f%% Training Complete / %s Estimated Time Remaining" (float(1000 * iteration / maxiteration.Value) * 0.1) etls)
-        if (match maxiteration with | None -> true | Some maxiter when (iteration < maxiter) -> true | _ -> false) then
+        if (match maxiteration with | None -> true | Some maxiter when (iteration < maxiter) -> true | _ -> false) then // Checks if the test is to continue.
             let newneurons,newsensorymap,sample = 
                     if ispaused then
                         neurons,smap,[||]
                     else
                         processstep iteration addresses neurons newneurons smap threads (snd currentfunction)
-            if not ispaused then
+            if not ispaused then // If there is another sample, collect it.
                 samples.Enqueue(sample)
                 if samples.Count > samplecount then samples.Dequeue() |> ignore
-            let inline basicsteps () =
+            let inline basicsteps () = // The default parameters to go to the next step.
                 processsteps 
                     (if ispaused then iteration else iteration + 1)
                     maxiteration
@@ -201,7 +202,7 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                     ispaused
                     previousduration
                     (if ispaused then currentdatetime else sessionstarttime)
-            if commandqueue.IsSome then
+            if commandqueue.IsSome then // Processes the next command, if there is one.
                 let tmsg = 
                     if ispaused || (match maxiteration with | None -> false | Some maxiter when (iteration < maxiter) -> false | _ -> true) then
                         commandqueue.Value.Receive() |> Async.RunSynchronously |> Some
@@ -213,7 +214,7 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                 
                 if tmsg.IsSome then
                     match tmsg.Value with
-                    | TestContinue ->
+                    | TestContinue -> // Continues the test from a paused state.
                         processsteps 
                             (iteration + 1)
                             maxiteration
@@ -230,7 +231,7 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             false
                             previousduration
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestSetSampleCount newsamplecount ->
+                    | TestSetSampleCount newsamplecount -> // Sets how many more steps to process before pausing. If no number is given, instead continue running indefinitely.
                         processsteps 
                             (if ispaused then iteration else iteration + 1)
                             maxiteration
@@ -247,7 +248,7 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             ispaused
                             previousduration
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestPause ->
+                    | TestPause -> // Pauses the test if it's running.
                         processsteps 
                             iteration
                             maxiteration
@@ -264,7 +265,7 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             true
                             (previousduration+(currentdatetime-sessionstarttime))
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestStep ->
+                    | TestStep -> // Process a single step while in the paused state.
                         processsteps 
                             (iteration + 1)
                             (iteration + 1 |> Some)
@@ -281,7 +282,7 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             false
                             previousduration
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestGetSamples results ->
+                    | TestGetSamples results -> // Gets the statistics of the most recent samples.
                         let samplearrays = samples.ToArray()
                         let functionsamples = Array.map (fun (a:float[]) -> a.[0]) samplearrays
                         let mimicsamples = Array.map (fun (a:float[]) -> a.[1]) samplearrays
@@ -289,14 +290,14 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                         let absoluteerrorsamples = Array.map (fun (a:float[]) -> (a.[1] - a.[0]) |> abs) samplearrays
                         results.Reply(Stats functionsamples,Stats mimicsamples, Stats errorsamples, Stats absoluteerrorsamples)
                         basicsteps()
-                    | TestGetProgress results ->
+                    | TestGetProgress results -> // Gets the progress of the test if it has a set number of steps to process.
                         match (maxiteration,setl) with
                         | (Some miter,Some etl) ->
                             results.Reply((iteration,currenttimelapsed+previousduration),Some(miter,etl))
                         | _ ->
                             results.Reply((iteration,currenttimelapsed+previousduration),None)
                         basicsteps()
-                    | TestSetRemainingIterations newremainingiterations ->
+                    | TestSetRemainingIterations newremainingiterations -> // Sets how many more steps to process before pausing.
                         processsteps 
                             (if ispaused then iteration else iteration + 1)
                             (match newremainingiterations with | Some v -> Some(iteration+v) | None -> None)
@@ -313,7 +314,7 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             ispaused
                             previousduration
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestSetFunction(newfunctionname,newfunction) ->
+                    | TestSetFunction(newfunctionname,newfunction) -> // Sets the input function of the test.
                         processsteps
                             (if ispaused then iteration else iteration + 1)
                             maxiteration
@@ -330,13 +331,13 @@ let TestNervousSystem neuraltypes neuralstructures seed (trainingsteps : int opt
                             ispaused
                             previousduration
                             (if ispaused then currentdatetime else sessionstarttime)
-                    | TestGetFunction(result) ->
+                    | TestGetFunction(result) -> // Gets the input function of the test.
                         result.Reply(currentfunction)
                         basicsteps()
-                    | TestGetRemainingIterations(result) ->
+                    | TestGetRemainingIterations(result) -> // Gets the remaining number of steps if there is a set number of steps to process.
                         result.Reply(match maxiteration with | None -> None | Some value -> value - iteration |> Some)
                         basicsteps()
-                    | TestGetSampleCount(result) ->
+                    | TestGetSampleCount(result) -> // Gets the number of samples to gather.
                         result.Reply(samplecount)
                         basicsteps()
 
