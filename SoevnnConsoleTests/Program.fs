@@ -1,5 +1,4 @@
 ﻿module Soevnn.Console.Program
-// Learn more about F# at http://fsharp.org
 
 open System
 open Soevnn.Core
@@ -9,7 +8,6 @@ open Soevnn.Serialization
 open Soevnn.Console.Utilities
 open Soevnn.Console.Testing
 
-//type printg<'t> = Printf.TextWriterFormat<'t> -> 't
 
 
 
@@ -28,10 +26,10 @@ let populations =
         (0.4,   0.5,    0.5,    0.3,    20,     0.5,    0.1,    0.02,   1,      5,      3)
     ]
 
-let initialstructures =
-    [
-        [
-            (3,4)
+let initialstructures = 
+    [ // list of construction data to form neural structures
+        [ // list of populations that make up a single structure
+            (3,4) // (how many of, the population at this index)
             (3,5)
             (2,6)
         ]
@@ -46,19 +44,19 @@ let initialstructures =
         ]
     ]
 
-let (|Command|_|) (name:string list) (values : string list) =
+let (|Command|_|) (name:string list) (values : string list) = // Active pattern to match a command.
     match values with
     | head::tail -> if IsAny name head then Some tail else None
     | [] -> None
 
-type ParamType =
+type ParamType = // The possible types of command parameters. 
 | PtInt
 | PtFloat
 | PtString
 | PtUnit
 | PtList of ParamType
 
-let rec (|Commands|_|) (commands: (string list * (string list * ParamType * string) list * string * (_ -> _)) list) (values : string list) =
+let rec (|Commands|_|) (commands: (string list * (string list * ParamType * string) list * string * (_ -> _)) list) (values : string list) = // Active pattern to match a command against a list of possible commands.
     match commands with
     | (name,paraminfolist,info,dothis) :: ctail ->
         match values with
@@ -66,21 +64,21 @@ let rec (|Commands|_|) (commands: (string list * (string list * ParamType * stri
         | [] -> ``|Commands|_|`` ctail values
     | [] -> None
 
-let ExtractInt (value:string) : int option =
+let ExtractInt (value:string) : int option = // Tries to get the int value of the parameter.
     let result = ref 0
     if System.Int32.TryParse(value, result) then
         Some result.Value
     else
         None
 
-let ExtractFloat (value:string) : float option =
+let ExtractFloat (value:string) : float option = // Tries to get the float value of the parameter.
     let result = ref 0.0
     if System.Double.TryParse(value, result) then
         Some result.Value
     else
         None
 
-let ExtractArray<'item> (valueextractor : string -> 'item option) (value : string) =
+let ExtractArray<'item> (valueextractor : string -> 'item option) (value : string) = // Tries to get a list value of the parameter.
     if value.[0] = '[' && value.[value.Length-1] = ']' then
         let rec split (remargs : char list) (partial : char list) (results : string list) (isinquote : bool) (parenslayer : int) =
             match remargs with
@@ -97,7 +95,7 @@ let ExtractArray<'item> (valueextractor : string -> 'item option) (value : strin
     else
         None
 
-let ExtractPopulation (floatextractor : string -> float option) (intextractor : string -> int option) (args : string list) =
+let ExtractPopulation (floatextractor : string -> float option) (intextractor : string -> int option) (args : string list) = // Tries to get a population value of the parameter.
     let argcounter = ref 0
     let getarg() = argcounter := argcounter.Value + 1; args.[argcounter.Value - 1]
     if args.Length = 10 then
@@ -114,7 +112,7 @@ let ExtractPopulation (floatextractor : string -> float option) (intextractor : 
 let defaultoption (defaultoption : 'a) (option : 'a option)  =
     if option.IsSome then option.Value else defaultoption
 
-let extractarg (argname : string list) (argtype : string->'result option) (args : string list) : 'result option =
+let extractarg (argname : string list) (argtype : string->'result option) (args : string list) : 'result option = // Tries to get the parameter of an expected type.
     if List.exists (IsAny argname) args then
         let index = List.findIndex (IsAny argname) args
         printbn "Given argument %s" argname.[1]
@@ -124,7 +122,7 @@ let extractarg (argname : string list) (argtype : string->'result option) (args 
         None
     
 
-let extractargs (argname : string list) (argtype : string->'result option) (args : string list) : 'result list =
+let extractargs (argname : string list) (argtype : string->'result option) (args : string list) : 'result list = // Tries to get then parameters of and expected type.
     if List.exists (IsAny argname) args then
         let results = [for i in [0 .. args.Length - 2] do if IsAny argname args.[i] then match argtype args.[i+1] with | Some value -> yield! [value] | None -> ()  ]
         printbn "Given argument %s" argname.[1]
@@ -132,7 +130,7 @@ let extractargs (argname : string list) (argtype : string->'result option) (args
     else
         []    
     
-let getargs (args : string) =
+let getargs (args : string) = // Gets the list of arguments in string format from a single string.
     let stringofcharlist (cl : char list) = (cl |> List.rev |> List.map string |> String.concat "")
     let rec split (remargs : char list) (partial : char list) (results : string list) (isinquote : bool) (parensdepth : int) =
         match remargs with
@@ -145,17 +143,17 @@ let getargs (args : string) =
     split (args.ToCharArray() |> List.ofArray) [] [] false 0
     |> List.filter (IsEqual "" >> not)
 
-type CommandMessage<'test> =
+type CommandMessage<'test> = // Possible program commands.
     | CommandArgs of (string list -> unit) * string list
     | Test of 'test
     | Stop
 
-type CommandState =
+type CommandState = // Unused. TODO: Remove this.
     | Continue
     | StopState
     | Error of string
 
-let timespantostring (etl:TimeSpan) =
+let timespantostring (etl:TimeSpan) = // Formats a timespan as a string to be appropriately specific.
     if etl.TotalDays > 1.0 then 
         etl.Days.ToString() + " Days, " + etl.Hours.ToString() + " Hours"
     else if etl.TotalHours > 1.0 then 
@@ -187,10 +185,10 @@ let main argv =
                     async{
                         let! commsg = mp.Receive()
                         match commsg with
-                        | CommandArgs(comproc, comargs) ->
+                        | CommandArgs(comproc, comargs) -> // Execute a console command with the given arguments.
                             comproc comargs
                             return! loop Continue
-                        | Test(populations, structures, seed, trainingsteps, testingsteps, (fname, inputfunction), logfile, silent, messagequeue, testcommandqueue) -> 
+                        | Test(populations, structures, seed, trainingsteps, testingsteps, (fname, inputfunction), logfile, silent, messagequeue, testcommandqueue) -> // Initiate a test with the given parameters.
                             try
                                 if tests.TryAdd(tests.Count, ((match messagequeue with | Some value -> value | None -> new System.Collections.Concurrent.ConcurrentQueue<string>()),match testcommandqueue with | Some value -> value | None -> new MailboxProcessor<TestCommand>(fun mp -> async { () }))) then
                                     Async.Start(async { TestNervousSystem populations structures seed trainingsteps testingsteps (fname, inputfunction) logfile silent (tests.[tests.Count-1] |> fst |> Some) (tests.[tests.Count-1] |> snd |> Some)}) 
@@ -198,12 +196,12 @@ let main argv =
                                     TestNervousSystem populations structures seed trainingsteps testingsteps (fname, inputfunction) logfile silent messagequeue testcommandqueue
                                 return! loop Continue
                             with
-                            | e ->
+                            | e -> // If there is an error, break out of the command processing loop and return the error message.
                                 match messagequeue with
                                 | Some msgq -> msgq.Enqueue(e.Message)
                                 | None -> ()
                                 return Error e.Message
-                        | Stop -> 
+                        | Stop -> // Stops processing commands.
                             return StopState
                     }
                 loop Continue
@@ -212,7 +210,7 @@ let main argv =
             ,
             cancelcommandqueue)
 
-    let posttestcommand (cmd : TestCommand) msgsuccess args =
+    let posttestcommand (cmd : TestCommand) msgsuccess args = // Posts a command to a particular test.
         let testname = extractarg ["-t";"--test"]  (id>>Some) args
         let testindex = 
             match testname with
@@ -238,7 +236,7 @@ let main argv =
                 else
                     printbn "Invalid test index. There are no tests."
     
-    let postandreplytestcommand (cmd : AsyncReplyChannel<_> -> TestCommand) msgsuccess args =
+    let postandreplytestcommand (cmd : AsyncReplyChannel<_> -> TestCommand) msgsuccess args = // Posts a command to a particular test and waits for a reply.
         let testname = extractarg ["-t";"--test"]  (id>>Some) args
         let testindex = 
             match testname with
@@ -268,19 +266,19 @@ let main argv =
                 None
 
     // A list of commands accessible from the program, along with information usable by the help command.
-    // ToDo: Finish moving all commands from the "loop" function to this list.
+    // TODO: Finish moving all commands from the "loop" function to this list.
     let commandlist : (string list * (string list * ParamType * string) list * string * (_ -> _)) list ref = ref []
     commandlist :=
         [
             (
-                ["teststep"; "tstep"],
-                [(["--test";"-t"],PtString,"The name of the test to send the command to.");
+                ["teststep"; "tstep"], // List of aliases. The command may be called by any of these.
+                [(["--test";"-t"],PtString,"The name of the test to send the command to."); // (List of argument aliases, argument type, description of the argument)
                 (["--index";"-i"],PtInt,"The id of the test to send the command to.");
                 ],
-                "Pauses a test and has it run one step of processing.",
-                fun (pops,structures,args) ->
+                "Pauses a test and has it run one step of processing.", // Description of the command.
+                fun (pops,structures,args) -> // The function that executes the command. The parameters: (list of populations, list of structures, list of given command arguments)
                     posttestcommand TestStep (Printf.sprintf "Test %i successfully continued.") args
-                    Some(pops, structures)
+                    Some(pops, structures) // Return the new population list and structure list for the next command loop step. If none, break the loop and end the program.
             );
             (
                 ["formattest"; "ftest"],
@@ -577,20 +575,20 @@ let main argv =
         ]
         |> List.sortBy (fun (names : string list, _, _, _) -> names.Head)
 
-    commandqueue.Start()
-    let rec loop (prevwindowwidth) (pops : (float * float * float * float * int * float * float * float * int * int * int) list) (structures : (int * int) list list) argl =
-        let indexlist l il =
+    commandqueue.Start() // Initiates the mailbox processor for commands. 
+    let rec loop (prevwindowwidth) (pops : (float * float * float * float * int * float * float * float * int * int * int) list) (structures : (int * int) list list) argl = // The main program loop.
+        let indexlist l il = // Unused. Unsure what it was for. TODO: Remove indexlist.
             il
             |> SomeIfForAll (IndexInRange l)
             |> Option.map (fun il -> List.map (fun i -> l.[i]) il)
         let currentwindowwidth = Console.WindowWidth
         let loop = loop currentwindowwidth
-        if prevwindowwidth <> currentwindowwidth then
-            Console.Clear()
-            Console.Write(buffer.GetFormattedString(Console.WindowWidth))
-        let readline () =
+        if prevwindowwidth <> currentwindowwidth then // If the window width has changed then...
+            Console.Clear()  
+            Console.Write(buffer.GetFormattedString(Console.WindowWidth)) // ...redraw contents formatted for the new width.
+        let readline () = // Reads a line from the console. This has to be handled specially for the formatted print buffer.
             let input = Console.ReadLine()
-            readbn "%s" input
+            readbn "%s" input // Updates the buffer with the line read.
             input
         match argl with
         | Command(["-break"]) args ->    
@@ -721,6 +719,6 @@ let main argv =
             loop pops structures (readline() |> getargs)
         
 
-    loop Console.WindowWidth populations initialstructures (List.ofArray argv)
+    loop Console.WindowWidth populations initialstructures (List.ofArray argv) // Start the program loop.
 
     0 // return an integer exit code
