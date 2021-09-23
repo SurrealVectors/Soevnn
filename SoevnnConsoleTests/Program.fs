@@ -681,9 +681,6 @@ let main argv =
             | None ->
                 ()
             loop pops structures (readline() |> getargs)
-        | Command(["saveloadnervoussystemstest" ; "slnstest"]) args ->
-            TestSaveLoadNervousSystem ()
-            loop pops structures (readline() |> getargs)
         | "testcount" :: _ -> 
             let cnt = tests.Count
             if cnt > 0 then

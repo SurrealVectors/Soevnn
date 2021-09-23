@@ -65,6 +65,46 @@ type TestCommand =
 | TestSetFunction of string * (int -> float)
 | TestGetFunction of (string * (int -> float)) AsyncReplyChannel
 
+let ExtractFile (value:string) : _ option =
+    try
+        if not (value.Contains('/')) then
+            File.AppendText(@"./"+value)
+            |> Some
+        else
+            File.AppendText(value)
+            |> Some
+    with
+        | _ -> None
+
+
+let SaveFile (filetype : string) (value : string) : _ option =
+    try
+        let path =
+            if not (value.Contains('/')) then
+                @"./"+value
+            else
+                value
+            + if value.Contains('.') then "" else ("." + filetype)
+        File.Open(path,FileMode.Create,FileAccess.ReadWrite)
+        |> Some 
+    with
+        | _ -> None
+
+let LoadFile (filetype : string) (value:string) : _ option =
+    try
+        
+        let path =
+            if not (value.Contains('/')) then
+                @"./"+value
+            else
+                value
+            + if value.Contains('.') then "" else "." + filetype
+            
+        File.OpenRead(path)
+        |> Some
+    with
+        | _ -> None
+
 let printsamples (samples : float [] option) (samplestats : Stats) (label : string) =
     printbn "%s" label
     if samples.IsSome then printbn "%A" samples.Value
